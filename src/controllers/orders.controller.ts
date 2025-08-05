@@ -35,7 +35,8 @@ export const createOrder = async (req: Request, res: Response) => {
         },
       }
     );
-
+    console.log("Token utilizado:", token);
+    console.log("Payload enviado:", JSON.stringify(orderPayload, null, 2));
     return res.status(200).json(mpResponse.data);
   } catch (error: any) {
     const errorData = error.response?.data || {};
