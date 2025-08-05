@@ -38,16 +38,18 @@ export const createOrder = async (req: Request, res: Response) => {
 
     return res.status(200).json(mpResponse.data);
   } catch (error: any) {
+    const errorData = error.response?.data || {};
     console.error(
       "Error al crear la orden:",
-      error.response?.data || error.message
+      JSON.stringify(errorData, null, 2)
     );
+
     return res.status(error.response?.status || 500).json({
-      error: error.response?.data || "Error al crear la orden en Mercado Pago",
+      error: "Error al crear la orden en Mercado Pago",
+      details: errorData,
     });
   }
 };
-
 
 export const getOrder = async (req: Request, res: Response) => {
   const token = getTokenFromRequest(req);
@@ -77,9 +79,13 @@ export const getOrder = async (req: Request, res: Response) => {
 
     return res.status(200).json(mpResponse.data);
   } catch (error: any) {
-    console.error("Error al obtener la orden:", error.response?.data || error.message);
+    console.error(
+      "Error al obtener la orden:",
+      error.response?.data || error.message
+    );
     return res.status(error.response?.status || 500).json({
-      error: error.response?.data || "Error al obtener la orden desde Mercado Pago",
+      error:
+        error.response?.data || "Error al obtener la orden desde Mercado Pago",
     });
   }
 };
