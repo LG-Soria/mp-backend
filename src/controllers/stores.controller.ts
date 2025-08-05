@@ -2,12 +2,13 @@ import { Request, Response } from "express";
 import axios from "axios";
 import { getStoredToken, getStoredUserId } from "./auth.controller";
 import { getTokenFromRequest } from "../utils/getAuthToken";
+import { getUserIdFromRequest } from "../utils/getUserId";
 
 export const getStores = async (req: Request, res: Response) => {
   const { userId } = req.params;
   const token = getTokenFromRequest(req);
-  console.log('userId desde params:', userId);
-  console.log('token desde params:', token);
+  console.log("userId desde params:", userId);
+  console.log("token desde params:", token);
 
   if (!token || !userId) {
     return res.status(400).json({ error: "token y userId son requeridos" });
@@ -32,7 +33,8 @@ export const getStores = async (req: Request, res: Response) => {
 
 export const createStore = async (req: Request, res: Response) => {
   const token = getTokenFromRequest(req);
-  const userId = getStoredUserId();
+  const userId = getUserIdFromRequest(req);
+
   const storeData = req.body;
 
   if (!token || !userId) {
