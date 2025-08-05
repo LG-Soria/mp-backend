@@ -3,25 +3,30 @@ import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import { getTokenFromRequest } from "../utils/getAuthToken";
 
+
 export const createOrder = async (req: Request, res: Response) => {
   const token = getTokenFromRequest(req);
-  console.log("Body recibido:", req.body);
+  const orderPayload = req.body;
+
+  console.log("========== CREAR ORDEN ==========");
+  console.log("Token recibido:", token || "❌ No hay token");
+  console.log("Payload recibido:", JSON.stringify(orderPayload, null, 2));
 
   if (!token) {
+    console.warn("⚠️ No se recibió token. Cancelando...");
     return res.status(401).json({
       error: "Token de Mercado Pago no disponible. Autenticación requerida.",
     });
   }
 
+  if (!orderPayload.type || !["qr", "point"].includes(orderPayload.type)) {
+    console.warn("⚠️ Tipo de orden inválido:", orderPayload.type);
+    return res.status(400).json({
+      error: "Tipo de orden inválido. Debe ser 'qr' o 'point'.",
+    });
+  }
+
   try {
-    const orderPayload = req.body;
-
-    if (!orderPayload.type || !["qr", "point"].includes(orderPayload.type)) {
-      return res
-        .status(400)
-        .json({ error: "Tipo de orden inválido. Debe ser 'qr' o 'point'." });
-    }
-
     const idempotencyKey = uuidv4();
 
     const mpResponse = await axios.post(
@@ -35,23 +40,25 @@ export const createOrder = async (req: Request, res: Response) => {
         },
       }
     );
-    console.log("Token utilizado:", token);
-    console.log("Payload enviado:", JSON.stringify(orderPayload, null, 2));
+
+    console.log("✅ Orden creada correctamente");
     return res.status(200).json(mpResponse.data);
   } catch (error: any) {
+    const status = error.response?.status || 500;
+    const message = error.message || "Error desconocido";
     const errorData = error.response?.data || {};
-    console.error(
-      "Error al crear la orden:",
-      JSON.stringify(errorData, null, 2)
-    );
 
-    return res.status(error.response?.status || 500).json({
+    console.error("❌ Error al crear la orden:");
+    console.error("Código de estado:", status);
+    console.error("Mensaje:", message);
+    console.error("Respuesta de Mercado Pago:", JSON.stringify(errorData, null, 2));
+
+    return res.status(status).json({
       error: "Error al crear la orden en Mercado Pago",
       details: errorData,
     });
   }
 };
-
 export const getOrder = async (req: Request, res: Response) => {
   const token = getTokenFromRequest(req);
   const { orderId } = req.params;
