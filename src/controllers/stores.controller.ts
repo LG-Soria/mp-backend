@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import axios from "axios";
-import { getStoredToken, getStoredUserId } from "./auth.controller";
 import { getTokenFromRequest } from "../utils/getAuthToken";
 import { getUserIdFromRequest } from "../utils/getUserId";
 
@@ -26,11 +25,35 @@ export const getStores = async (req: Request, res: Response) => {
 
     return res.json({ sucursales: response.data.results });
   } catch (error: any) {
-    console.error("Error al obtener sucursales:", error.message);
-    return res.status(500).json({ error: "Error al obtener sucursales" });
+    console.error("Error al obtener sucursales:", error);
+
+    // Si es un error de Axios, mostrar detalle completo
+    if (error.response) {
+      console.error("🟥 Respuesta de Mercado Pago:", error.response.data);
+      return res.status(error.response.status || 500).json({
+        error: "Error al obtener sucursales",
+        detalle: error.response.data, // detalle de Mercado Pago
+        status: error.response.status,
+      });
+    }
+
+    // Si es un error en la request (no llegó al servidor)
+    if (error.request) {
+      console.error("🟧 No se recibió respuesta:", error.request);
+      return res.status(500).json({
+        error: "No se recibió respuesta de Mercado Pago",
+        detalle: error.request,
+      });
+    }
+
+    // Otro tipo de error
+    console.error("🟨 Error inesperado:", error.message);
+    return res.status(500).json({
+      error: "Error inesperado al obtener sucursales",
+      detalle: error.message,
+    });
   }
 };
-
 export const createStore = async (req: Request, res: Response) => {
   const token = getTokenFromRequest(req);
   const userId = getUserIdFromRequest(req);
