@@ -2,58 +2,86 @@ import { Request, Response } from "express";
 import axios from "axios";
 import { getTokenFromRequest } from "../utils/getAuthToken";
 import { getUserIdFromRequest } from "../utils/getUserId";
+function tryParseJSON(str?: unknown) {
+  if (typeof str !== "string") return str;
+  const s = str.trim();
+  if (!(s.startsWith("{") || s.startsWith("["))) return str;
+  try {
+    return JSON.parse(s);
+  } catch {
+    return str;
+  }
+}
+
+function maskToken(token: string) {
+  const t = token.trim();
+  if (t.length <= 10) return "***";
+  return `${t.slice(0, 6)}…${t.slice(-6)} (len=${t.length})`;
+}
 
 export const getStores = async (req: Request, res: Response) => {
   const { userId } = req.params;
   const token = getTokenFromRequest(req);
-  console.log("userId desde params:", userId);
-  console.log("token desde params:", token);
+
+  // Log útil (sin exponer el token completo)
+  console.log("getStores:userId=", userId);
+  console.log("getStores:token=", token ? maskToken(token) : "⛔ no token");
 
   if (!token || !userId) {
     return res.status(400).json({ error: "token y userId son requeridos" });
   }
 
+  // Sugerencia: chequeo rápido de formato
+  const trimmed = token.trim();
+  if (!/^APP_USR-[A-Za-z0-9._-]+$/.test(trimmed)) {
+    console.warn("⚠️ Posible token malformado:", maskToken(trimmed));
+  }
+
   try {
     const response = await axios.get(
       `https://api.mercadopago.com/users/${userId}/stores/search`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
+      { headers: { Authorization: `Bearer ${trimmed}` } }
     );
-
     return res.json({ sucursales: response.data.results });
   } catch (error: any) {
-    console.error("Error al obtener sucursales:", error);
+    // Log completo para server
+    console.error("Error al obtener sucursales:", error?.message || error);
 
-    // Si es un error de Axios, mostrar detalle completo
-    if (error.response) {
-      console.error("🟥 Respuesta de Mercado Pago:", error.response.data);
+    if (error?.response) {
+      const mpRaw = error.response.data; // lo que devolvió MP
+      const maybeParsed = tryParseJSON(mpRaw?.message); // por si message viene como JSON string
+
+      const mpDetail =
+        typeof maybeParsed === "object" && maybeParsed !== null
+          ? maybeParsed
+          : mpRaw;
+
       return res.status(error.response.status || 500).json({
         error: "Error al obtener sucursales",
-        detalle: error.response.data, // detalle de Mercado Pago
         status: error.response.status,
+        detalle: mpDetail, // ahora debería ser objeto limpio
+        hints: [
+          "Verificá que el header Authorization sea 'Bearer <token>' sin comillas extras.",
+          "Asegurate de no enviar el token envuelto en JSON como string.",
+          "Chequeá que el token no esté truncado y que pertenezca al mismo userId.",
+        ],
       });
     }
 
-    // Si es un error en la request (no llegó al servidor)
-    if (error.request) {
-      console.error("🟧 No se recibió respuesta:", error.request);
-      return res.status(500).json({
+    if (error?.request) {
+      return res.status(502).json({
         error: "No se recibió respuesta de Mercado Pago",
-        detalle: error.request,
+        detalle: "timeout / network / DNS / bloqueo",
       });
     }
 
-    // Otro tipo de error
-    console.error("🟨 Error inesperado:", error.message);
     return res.status(500).json({
       error: "Error inesperado al obtener sucursales",
-      detalle: error.message,
+      detalle: String(error?.message || error),
     });
   }
 };
+
 export const createStore = async (req: Request, res: Response) => {
   const token = getTokenFromRequest(req);
   const userId = getUserIdFromRequest(req);
