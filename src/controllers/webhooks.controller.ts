@@ -35,7 +35,7 @@ export async function handleMpWebhook(req: Request, res: Response) {
     }
 
     // ACK rápido
-    res.status(202).json({ ok: true });
+    res.status(200).json({ ok: true });
 
     // Despacho asíncrono
     const body = (req.body || {}) as MpWebhookBody;
