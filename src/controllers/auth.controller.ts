@@ -15,7 +15,7 @@ export const getTokenFromPHP = async (req: Request, res: Response) => {
     const payload = JSON.stringify({
       _e,
       _m,
-      _a: "1",
+      _a: "3",
     });
 
     const phpUrl = `https://apiphp.novagestion.com.ar/apinovades/mercadopago/obtenerMercadoToken.php?_i=${encodeURIComponent(
