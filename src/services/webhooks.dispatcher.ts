@@ -1,5 +1,6 @@
-import { MpWebhookBody } from "../types/mp-webhook";
+import { MpWebhookBody, MpWebhookMeta } from "../types/mp-webhook";
 import { logger } from "../utils/logger";
+import { handleMpConnect } from "./webhooks.mpconnect";
 import { processPaymentNotification } from "./webhooks.service";
 
 /**
