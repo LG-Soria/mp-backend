@@ -1,3 +1,4 @@
+import { MpWebhookMeta } from "../types/mp-webhook";
 import { getAuthToken, getTokenFromRequest } from "../utils/getAuthToken";
 import { logger } from "../utils/logger";
 
@@ -27,7 +28,7 @@ function markProcessed(id: string) {
  */
 export async function processPaymentNotification(
   paymentId: string,
-  meta: Record<string, unknown>
+  meta: MpWebhookMeta
 ) {
   try {
     if (isProcessed(paymentId)) {
