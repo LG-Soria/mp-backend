@@ -9,6 +9,6 @@ const router = Router();
  * - Query esperada: data.id (o id)
  * - Headers: x-request-id, x-signature
  */
-router.post("/webhooks/mp", handleMpWebhook);
+router.post("/mp", handleMpWebhook);
 
 export default router;
