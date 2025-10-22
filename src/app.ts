@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth.routes";
 import storeRoutes from "./routes/stores.routes";
 import posRoutes from "./routes/pos.routes";
 import ordersRoutes from "./routes/orders.routes";
+import webhooksRoutes from "./routes/webhooks.routes";
 
 dotenv.config();
 
@@ -21,5 +22,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api", storeRoutes);
 app.use("/api/cajas", posRoutes);
 app.use("/api", ordersRoutes);
+app.use("/webhooks", webhooksRoutes);
 
 export default app;
