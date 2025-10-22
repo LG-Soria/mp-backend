@@ -3,12 +3,14 @@
 
 import { MpWebhookBody, MpWebhookMeta } from "../types/mp-webhook";
 import { logger } from "../utils/logger";
+import { fetchMlUser } from "./ml-users.service";
 
 
 /**
  * Handler genérico para eventos mp-connect.
  * Loguea absolutamente todo lo que llega para análisis.
  */
+
 export async function handleMpConnect(action: string, body: MpWebhookBody, meta: MpWebhookMeta) {
   logger.info("──────────────────────────────────────────────");
   logger.info("[MP Webhook][mp-connect] Nueva notificación recibida");
@@ -19,8 +21,6 @@ export async function handleMpConnect(action: string, body: MpWebhookBody, meta:
   logger.info("──────────────────────────────────────────────");
 
   const userId = body.user_id;
-
-  // Si no viene user_id, igual lo registramos completo
   if (!userId) {
     logger.warn("[MP Webhook][mp-connect] user_id ausente en body");
     return;
@@ -28,52 +28,50 @@ export async function handleMpConnect(action: string, body: MpWebhookBody, meta:
 
   switch (action) {
     case "application.authorized":
-      logger.info(`[MP Webhook][mp-connect] ✅ Authorized - user_id=${userId}`);
-      // TODO: guardar vinculación
+      await onApplicationAuthorized(userId, body, meta);
       break;
 
     case "application.deauthorized":
-      logger.info(`[MP Webhook][mp-connect] ❌ Deauthorized - user_id=${userId}`);
-      // TODO: eliminar o marcar desvinculado
+      await onApplicationDeauthorized(userId, body, meta);
       break;
 
     default:
-      logger.info(`[MP Webhook][mp-connect] ⚠️ Action no manejada: ${action}`);
+      logger.info(`[MP Webhook][mp-connect] Action no manejada: ${action}`);
       break;
   }
 }
 
-
-/** Cuando la cuenta autoriza la aplicación */
 async function onApplicationAuthorized(userId: number, body: MpWebhookBody, meta: MpWebhookMeta) {
-  // TODO: persistir el vínculo en BD (ej.: tabla mp_accounts)
-  // saveMpAccount({ userId, linked: true, linkedAt: meta.receivedAt })
+  // Obtención de datos públicos del usuario (nickname, business_name, etc.)
+  try {
+    const mlUser = await fetchMlUser(userId);
+    logger.info(`[MP Webhook][mp-connect] ✅ Authorized - user_id=${userId}`, {
+      core: {
+        nickname: mlUser?.nickname,
+        business_name: mlUser?.business_name,
+        first_name: mlUser?.first_name,
+        last_name: mlUser?.last_name,
+      },
+      rawUser: mlUser, // se deja crudo para inspección inicial
+      meta,
+    });
 
-  // Opcional: consultar datos del usuario en MP con el token de plataforma
-  // const token = await getAuthToken();
-  // const r = await fetch(`https://api.mercadopago.com/users/${userId}`, {
-  //   headers: { Authorization: `Bearer ${token}` }
-  // });
-  // const userInfo = r.ok ? await r.json() : null;
+    // TODO: persistir vínculo en BD (ejemplo):
+    // await mpAccountsRepo.link({
+    //   user_id: userId,
+    //   nickname: mlUser?.nickname ?? null,
+    //   business_name: mlUser?.business_name ?? null,
+    //   linked_at: meta.receivedAt,
+    // });
 
-  // TODO: adjuntar userInfo a la cuenta si hiciera falta
-
-  // Notificación de sistema
-  logger.info(`[MP Webhook][mp-connect] authorized user_id=${userId}`, {
-    body,
-    meta,
-  });
+  } catch (err) {
+    logger.error(`[MP Webhook][mp-connect] Error al obtener ML user (${userId})`, err);
+  }
 }
 
-/** Cuando la cuenta revoca la autorización */
 async function onApplicationDeauthorized(userId: number, body: MpWebhookBody, meta: MpWebhookMeta) {
-  // TODO: marcar como desvinculado en BD
-  // saveMpAccount({ userId, linked: false, unlinkedAt: meta.receivedAt })
+  logger.info(`[MP Webhook][mp-connect] ❌ Deauthorized - user_id=${userId}`, { body, meta });
 
-  // TODO: desactivar POS/QR/funciones asociadas a esa cuenta, invalidar tokens si corresponde
-
-  logger.info(`[MP Webhook][mp-connect] deauthorized user_id=${userId}`, {
-    body,
-    meta,
-  });
+  // TODO: marcar desvinculado en BD (ejemplo):
+  // await mpAccountsRepo.unlink({ user_id: userId, unlinked_at: meta.receivedAt });
 }
