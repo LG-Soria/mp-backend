@@ -22,7 +22,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api", storeRoutes);
 app.use("/api/cajas", posRoutes);
 app.use("/api", ordersRoutes);
-app.use("/webhooks", webhooksRoutes);
+app.use("/api/webhooks", webhooksRoutes);
 app.get("/api/health", (_req, res) => res.status(200).send("ok"));
 
 export default app;
