@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getAuthToken } from "../utils/getAuthToken";
+import { resolveTokenByUserId } from "../utils/resolveByUserId";
 
 export interface MlUser {
   id: number;
@@ -13,25 +13,35 @@ export interface MlUser {
 }
 
 /**
- * Obtiene información del usuario desde la API de Mercado Libre (o Mercado Pago).
- * Usa el token de aplicación para autenticarse.
+ * Para webhooks: intenta resolver token por user_id desde el caché.
+ * - Si hay token, lo usa.
+ * - Si no hay token, hace request pública (sin Authorization) para datos básicos.
  */
 export async function fetchMlUser(userId: number): Promise<MlUser | null> {
-  const token = await getAuthToken(); // ✅ tu token válido de app/seller
-  const url = `https://api.mercadolibre.com/users/${userId}`; // API válida para obtener perfil público del usuario
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const token = resolveTokenByUserId(String(userId)); // puede ser undefined
 
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Error al consultar usuario ${userId}: ${res.status} - ${text}`);
+  const url = `https://api.mercadolibre.com/users/${userId}`;
+  const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+  try {
+    const { data, status } = await axios.get(url, { headers, timeout: 8000 });
+    if (status === 200 && data) return data as MlUser;
+    if (status === 404) return null;
+    throw new Error(`Unexpected status ${status}`);
+  } catch (err: any) {
+    // Si intentamos sin token y recibimos 401/403, solo logueá; no tenemos _e/_m acá para refrescar
+    const st = err?.response?.status;
+    if (!token && (st === 401 || st === 403)) {
+      // Log suave: sin token aún (no se precalentó cache), y el endpoint pidió auth
+      // Podés decidir retornar null o relanzar; prefiero null para no romper el flujo del webhook.
+      return null;
+    }
+    // Otros errores sí se propagan
+    throw new Error(
+      `Error al consultar usuario ${userId}: ${st || ""} ${err?.message || err}`
+    );
   }
-
-  return (await res.json()) as MlUser;
 }
-
 
 export interface ObtenerTokenParams {
   empresa: string; // _e

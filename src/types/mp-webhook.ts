@@ -20,4 +20,7 @@ export interface MpWebhookMeta {
   receivedAt: string;
   rawQuery: Record<string, any>;
   rawHeaders: Record<string, any>;
+  // opcionales
+  type?: string;
+  action?: string;
 }

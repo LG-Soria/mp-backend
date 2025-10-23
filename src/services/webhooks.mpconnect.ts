@@ -1,5 +1,4 @@
-// import { getAuthToken } from "@/utils/getAuthToken";
-// import fetch from "node-fetch";
+
 
 import { MpWebhookBody, MpWebhookMeta } from "../types/mp-webhook";
 import { logger } from "../utils/logger";

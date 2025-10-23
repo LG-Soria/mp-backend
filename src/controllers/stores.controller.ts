@@ -1,69 +1,49 @@
+// src/controllers/stores.controller.ts
 import { Request, Response } from "express";
 import axios from "axios";
-import { getTokenFromRequest } from "../utils/getAuthToken";
-import { getUserIdFromRequest } from "../utils/getUserId";
+import { resolveUserData } from "../utils/resolveUserData";
+
 function tryParseJSON(str?: unknown) {
   if (typeof str !== "string") return str;
   const s = str.trim();
   if (!(s.startsWith("{") || s.startsWith("["))) return str;
-  try {
-    return JSON.parse(s);
-  } catch {
-    return str;
-  }
-}
-
-function maskToken(token: string) {
-  const t = token.trim();
-  if (t.length <= 10) return "***";
-  return `${t.slice(0, 6)}…${t.slice(-6)} (len=${t.length})`;
+  try { return JSON.parse(s); } catch { return str; }
 }
 
 export const getStores = async (req: Request, res: Response) => {
-  const { userId } = req.params;
-  const token = getTokenFromRequest(req);
-
-  // Log útil (sin exponer el token completo)
-  console.log("getStores:userId=", userId);
-  console.log("getStores:token=", token ? maskToken(token) : "⛔ no token");
-
-  if (!token || !userId) {
-    return res.status(400).json({ error: "token y userId son requeridos" });
-  }
-
-  // Sugerencia: chequeo rápido de formato
-  const trimmed = token.trim();
-  if (!/^APP_USR-[A-Za-z0-9._-]+$/.test(trimmed)) {
-    console.warn("⚠️ Posible token malformado:", maskToken(trimmed));
-  }
-
   try {
-    const response = await axios.get(
-      `https://api.mercadopago.com/users/${userId}/stores/search`,
-      { headers: { Authorization: `Bearer ${trimmed}` } }
+    // ✅ patrón por query params
+    const { _e, _m } = req.query as { _e?: string; _m?: string };
+    if (!_e || !_m) {
+      return res.status(400).json({ error: "Faltan parámetros: _e o _m" });
+    }
+
+    // 🔑 Resuelve (o refresca) access_token + user_id desde cache/PHP
+    const { access_token, user_id } = await resolveUserData(req, _e, _m);
+
+    // 📦 Llamada oficial a MP
+    const { data } = await axios.get(
+      `https://api.mercadopago.com/users/${user_id}/stores/search`,
+      { headers: { Authorization: `Bearer ${access_token}` } }
     );
-    return res.json({ sucursales: response.data.results });
+
+    // Normalizo salida como ya venías usando
+    return res.json({ sucursales: data?.results ?? [] });
   } catch (error: any) {
-    // Log completo para server
     console.error("Error al obtener sucursales:", error?.message || error);
 
     if (error?.response) {
-      const mpRaw = error.response.data; // lo que devolvió MP
-      const maybeParsed = tryParseJSON(mpRaw?.message); // por si message viene como JSON string
-
-      const mpDetail =
-        typeof maybeParsed === "object" && maybeParsed !== null
-          ? maybeParsed
-          : mpRaw;
+      const mpRaw = error.response.data;
+      const maybeParsed = tryParseJSON(mpRaw?.message);
+      const mpDetail = typeof maybeParsed === "object" && maybeParsed !== null ? maybeParsed : mpRaw;
 
       return res.status(error.response.status || 500).json({
         error: "Error al obtener sucursales",
         status: error.response.status,
-        detalle: mpDetail, // ahora debería ser objeto limpio
+        detalle: mpDetail,
         hints: [
-          "Verificá que el header Authorization sea 'Bearer <token>' sin comillas extras.",
-          "Asegurate de no enviar el token envuelto en JSON como string.",
-          "Chequeá que el token no esté truncado y que pertenezca al mismo userId.",
+          "Verificar que el token sea válido para la empresa/mode solicitados.",
+          "Si el token expiró, el backend lo renovará automáticamente.",
         ],
       });
     }
@@ -83,44 +63,44 @@ export const getStores = async (req: Request, res: Response) => {
 };
 
 export const createStore = async (req: Request, res: Response) => {
-  const token = getTokenFromRequest(req);
-  const userId = getUserIdFromRequest(req);
-
-  const storeData = req.body;
-
-  if (!token || !userId) {
-    return res
-      .status(400)
-      .json({ error: "Token o userId no disponible en memoria." });
-  }
-
   try {
-    const response = await axios.post(
-      `https://api.mercadopago.com/users/${userId}/stores`,
+    // ✅ patrón por query params
+    const { _e, _m } = req.query as { _e?: string; _m?: string };
+    if (!_e || !_m) {
+      return res.status(400).json({ error: "Faltan parámetros: _e o _m" });
+    }
+
+    const storeData = req.body;
+
+    // 🔑 Resuelve (o refresca) access_token + user_id
+    const { access_token, user_id } = await resolveUserData(req, _e, _m);
+
+    // (Opcional) validaciones mínimas:
+    const requiredFields = ["name", "external_id", "store_id", "category"];
+    for (const f of requiredFields) {
+      if (!storeData?.[f]) {
+        return res.status(400).json({ error: `Falta el campo obligatorio: ${f}` });
+      }
+    }
+
+    const { data } = await axios.post(
+      `https://api.mercadopago.com/users/${user_id}/stores`,
       storeData,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${access_token}`,
           "Content-Type": "application/json",
         },
       }
     );
 
-    return res.status(200).json(response.data);
+    return res.status(200).json(data);
   } catch (error: any) {
     if (axios.isAxiosError(error)) {
-      console.error(
-        "Detalles del error:",
-        error.response?.data || error.message
-      );
-      return res
-        .status(500)
-        .json({ error: error.response?.data || "Error desconocido" });
-    } else {
-      console.error("Error inesperado:", error);
-      return res
-        .status(500)
-        .json({ error: "Error inesperado al crear la sucursal" });
+      console.error("Detalles del error:", error.response?.data || error.message);
+      return res.status(error.response?.status || 500).json({ error: error.response?.data || "Error desconocido" });
     }
+    console.error("Error inesperado al crear la sucursal:", error);
+    return res.status(500).json({ error: "Error inesperado al crear la sucursal" });
   }
 };

@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import { verifyMpSignature } from "../utils/mpWebhook";
 import { logger } from "../utils/logger";
-import { processPaymentNotification } from "../services/webhooks.service";
 import { MpWebhookBody } from "../types/mp-webhook";
 import { dispatchMpEvent } from "../services/webhooks.dispatcher";
 
