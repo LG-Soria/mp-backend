@@ -1,13 +1,13 @@
-// src/routes/store.routes.ts
+// src/routes/stores.routes.ts
 import { Router } from "express";
-import { createStore, getStores } from "../controllers/stores.controller";
+import { getStores, createStore } from "../controllers/stores.controller";
 
 const router = Router();
 
-// Esta es la ruta que estás intentando usar en Postman
-router.get("/sucursales/:userId", getStores);
+// ✅ Listar sucursales (usa _e y _m por query, no por :userId)
+router.get("/sucursales", getStores);
 
-// Crear sucursal
+// ✅ Crear sucursal
 router.post("/sucursales", createStore);
 
 export default router;

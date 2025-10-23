@@ -24,6 +24,7 @@ export const getStores = async (req: Request, res: Response) => {
     // 📦 Llamada oficial a MP
     const { data } = await axios.get(
       `https://api.mercadopago.com/users/${user_id}/stores/search`,
+      
       { headers: { Authorization: `Bearer ${access_token}` } }
     );
 
