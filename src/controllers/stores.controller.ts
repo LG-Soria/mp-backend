@@ -65,28 +65,46 @@ export const getStores = async (req: Request, res: Response) => {
 
 export const createStore = async (req: Request, res: Response) => {
   try {
-    // ✅ patrón por query params
     const { _e, _m } = req.query as { _e?: string; _m?: string };
     if (!_e || !_m) {
       return res.status(400).json({ error: "Faltan parámetros: _e o _m" });
     }
 
-    const storeData = req.body;
+    const body = req.body ?? {};
+    const missing: string[] = [];
 
-    // 🔑 Resuelve (o refresca) access_token + user_id
-    const { access_token, user_id } = await resolveUserData(req, _e, _m);
+    if (!body.name) missing.push("name");
+    if (!body.external_id) missing.push("external_id");
 
-    // (Opcional) validaciones mínimas:
-    const requiredFields = ["name", "external_id", "store_id", "category"];
-    for (const f of requiredFields) {
-      if (!storeData?.[f]) {
-        return res.status(400).json({ error: `Falta el campo obligatorio: ${f}` });
+    const loc = body.location || {};
+    const reqLoc = [
+      "street_number",
+      "street_name",
+      "city_name",
+      "state_name",
+      "latitude",
+      "longitude",
+    ];
+    for (const f of reqLoc) {
+      if (loc[f] === undefined || loc[f] === null || loc[f] === "") {
+        missing.push(`location.${f}`);
       }
     }
 
+    if (missing.length) {
+      return res.status(400).json({
+        error: "Faltan campos obligatorios para crear la sucursal",
+        missing,
+        hint:
+          "Para Store: name, external_id y location completo. No mandar store_id ni category (eso es de POS).",
+      });
+    }
+
+    const { access_token, user_id } = await resolveUserData(req, _e, _m);
+
     const { data } = await axios.post(
       `https://api.mercadopago.com/users/${user_id}/stores`,
-      storeData,
+      body,
       {
         headers: {
           Authorization: `Bearer ${access_token}`,
@@ -98,10 +116,12 @@ export const createStore = async (req: Request, res: Response) => {
     return res.status(200).json(data);
   } catch (error: any) {
     if (axios.isAxiosError(error)) {
-      console.error("Detalles del error:", error.response?.data || error.message);
-      return res.status(error.response?.status || 500).json({ error: error.response?.data || "Error desconocido" });
+      return res
+        .status(error.response?.status || 500)
+        .json({ error: error.response?.data || "Error desconocido" });
     }
-    console.error("Error inesperado al crear la sucursal:", error);
-    return res.status(500).json({ error: "Error inesperado al crear la sucursal" });
+    return res
+      .status(500)
+      .json({ error: "Error inesperado al crear la sucursal" });
   }
 };
